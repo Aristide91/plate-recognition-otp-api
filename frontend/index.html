@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BYD Charging Station - Identification</title>
+    <script src="https://cdn.jsdelivr.net/npm/keycloak-js@24.0.5/dist/keycloak.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .byd-blue { color: #0086D6; }
+        .byd-bg-blue { background-color: #0086D6; }
+        .byd-btn { transition: all 0.3s ease; border-radius: 12px; font-weight: 600; }
+        .byd-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 134, 214, 0.2); }
+        .card { border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
+        .spinner { border: 3px solid rgba(0,0,0,0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: #0086D6; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .step-inactive { opacity: 0.5; filter: grayscale(1); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-white card p-8">
+        <!-- Header -->
+        <div class="text-center mb-10">
+            <img src="byd_logo.png" alt="BYD Logo" class="h-12 mx-auto mb-4">
+            <h2 class="text-gray-500 text-sm font-semibold tracking-widest uppercase">Smart Charging Station</h2>
+        </div>
+
+        <!-- App Screens -->
+        <div id="app-container">
+            <!-- 1. LOGIN SCREEN -->
+            <div id="screen-login" class="space-y-6">
+                <div class="text-center">
+                    <h1 class="text-2xl font-bold text-gray-800">Authentification</h1>
+                    <p class="text-gray-500 mt-2">Connectez-vous pour commencer la recharge.</p>
+                </div>
+                <div class="space-y-3">
+                    <button onclick="keycloak.login()" class="w-full byd-bg-blue text-white py-4 byd-btn">
+                        Se connecter avec Keycloak
+                    </button>
+                    <button onclick="keycloak.register()" class="w-full bg-white text-blue-600 border border-blue-600 py-3 byd-btn">
+                        Créer un compte (Inscription)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. OCR SCREEN -->
+            <div id="screen-ocr" class="hidden space-y-6">
+                <div class="text-center">
+                    <h1 class="text-2xl font-bold text-gray-800">Scan Carte Grise</h1>
+                    <p class="text-gray-500 mt-2">Déposez votre document pour identifier le véhicule.</p>
+                </div>
+                
+                <label id="dropzone" class="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-200 rounded-3xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+                    <div id="ocr-idle-ui" class="text-center">
+                        <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <p class="text-sm text-gray-500 font-medium">Cliquez ou glissez l'image</p>
+                    </div>
+                    <div id="ocr-loading-ui" class="hidden">
+                        <div class="spinner mx-auto"></div>
+                        <p class="text-sm text-blue-600 font-semibold mt-3">Analyse en cours...</p>
+                    </div>
+                    <input id="file-input" type="file" class="hidden" accept="image/*" />
+                </label>
+
+                <div id="ocr-result" class="hidden space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-400 uppercase">Plaque</span>
+                        <span id="res-plate" class="font-mono font-bold text-gray-800"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-400 uppercase">VIN</span>
+                        <span id="res-vin" class="font-mono text-xs text-gray-600"></span>
+                    </div>
+                    <button onclick="showScreen('screen-otp')" class="w-full mt-4 bg-gray-800 text-white py-3 byd-btn text-sm">
+                        Confirmer et continuer
+                    </button>
+                </div>
+
+                <button onclick="keycloak.logout()" class="w-full bg-white text-red-500 border border-red-200 hover:bg-red-50 py-3 byd-btn text-sm mt-4">
+                    Se déconnecter
+                </button>
+            </div>
+
+            <!-- 3. OTP SCREEN -->
+            <div id="screen-otp" class="hidden space-y-6">
+                <div class="text-center">
+                    <h1 class="text-2xl font-bold text-gray-800">Vérification OTP</h1>
+                    <p class="text-gray-500 mt-2">Un code de sécurité est requis.</p>
+                </div>
+
+                <div id="otp-send-ui" class="space-y-4">
+                    <input type="email" id="otp-identifier" placeholder="Email ou Téléphone (+33...)" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all">
+                    <button onclick="sendOTP()" id="btn-send-otp" class="w-full byd-bg-blue text-white py-3 byd-btn flex items-center justify-center">
+                        <span>Envoyer le code</span>
+                    </button>
+                    <button onclick="showScreen('screen-ocr')" class="w-full bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 py-3 byd-btn text-sm">
+                        Retour au scan
+                    </button>
+                </div>
+
+                <div id="otp-verify-ui" class="hidden space-y-4">
+                    <div class="flex justify-center space-x-2">
+                        <input type="text" id="otp-code" maxlength="6" placeholder="000000" class="w-full text-center tracking-widest text-2xl font-bold px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 outline-none">
+                    </div>
+                    <button onclick="verifyOTP()" id="btn-verify-otp" class="w-full bg-green-600 text-white py-3 byd-btn">
+                        Vérifier le code
+                    </button>
+                    <button onclick="resetOTP()" class="w-full bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 py-3 byd-btn text-sm">
+                        Retour
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. SUCCESS SCREEN -->
+            <div id="screen-success" class="hidden text-center space-y-6 py-8">
+                <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Identification Réussie</h1>
+                    <p class="text-gray-500 mt-2">Votre session de recharge BYD est prête.</p>
+                </div>
+                <button onclick="keycloak.logout()" class="w-full bg-gray-100 text-gray-600 py-3 byd-btn hover:bg-gray-200">
+                    Terminer et se déconnecter
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer Errors -->
+        <div id="error-toast" class="hidden mt-6 p-3 bg-red-50 text-red-600 rounded-xl text-xs font-medium border border-red-100"></div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000/api/v1";
+        const keycloak = new Keycloak({
+            url: 'http://localhost:8080',
+            realm: 'mon_projet',
+            clientId: 'byd-frontend'
+        });
+
+        let detectedPlate = "";
+        let detectedVin = "";
+        let currentIdentifier = "";
+
+        function showScreen(id) {
+            document.querySelectorAll('#app-container > div').forEach(d => d.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            hideError();
+        }
+
+        function showError(msg) {
+            const err = document.getElementById('error-toast');
+            err.textContent = msg;
+            err.classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('error-toast').classList.add('hidden');
+        }
+
+        // --- KEYCLOAK INIT ---
+        keycloak.init({ onLoad: 'check-sso', checkLoginIframe: false }).then(auth => {
+            if (auth) showScreen('screen-ocr');
+            else showScreen('screen-login');
+        }).catch(() => showError("Erreur de connexion Keycloak."));
+
+        // --- OCR LOGIC ---
+        const fileInput = document.getElementById('file-input');
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length) handleOCR(e.target.files[0]);
+        });
+
+        async function handleOCR(file) {
+            const idle = document.getElementById('ocr-idle-ui');
+            const loading = document.getElementById('ocr-loading-ui');
+            const result = document.getElementById('ocr-result');
+            
+            idle.classList.add('hidden');
+            loading.classList.remove('hidden');
+            result.classList.add('hidden');
+            hideError();
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch(`${API_BASE}/vehicles/analyze-registration-doc`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${keycloak.token}` },
+                    body: formData
+                });
+                
+                if (!resp.ok) throw new Error("Document illisible ou erreur serveur.");
+                
+                const data = await resp.json();
+                detectedPlate = data.plate || "INCONNU";
+                detectedVin = data.vin || "INCONNU";
+                
+                document.getElementById('res-plate').textContent = detectedPlate;
+                document.getElementById('res-vin').textContent = detectedVin;
+                result.classList.remove('hidden');
+            } catch (e) {
+                showError(e.message);
+                idle.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        // --- OTP LOGIC ---
+        function resetOTP() {
+            document.getElementById('otp-verify-ui').classList.add('hidden');
+            document.getElementById('otp-send-ui').classList.remove('hidden');
+            document.getElementById('otp-code').value = '';
+            hideError();
+        }
+
+        async function sendOTP() {
+            const input = document.getElementById('otp-identifier').value;
+            if (!input) return showError("Veuillez entrer un email ou numéro.");
+            
+            currentIdentifier = input;
+            const body = input.includes('@') ? { email: input } : { phone_number: input };
+
+            try {
+                const resp = await fetch(`${API_BASE}/otp/send-otp`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${keycloak.token}` 
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                if (!resp.ok) throw new Error("Erreur lors de l'envoi de l'OTP.");
+                
+                document.getElementById('otp-send-ui').classList.add('hidden');
+                document.getElementById('otp-verify-ui').classList.remove('hidden');
+            } catch (e) {
+                showError(e.message);
+            }
+        }
+
+        async function verifyOTP() {
+            const code = document.getElementById('otp-code').value;
+            if (code.length !== 6) return showError("Le code doit faire 6 chiffres.");
+
+            try {
+                const resp = await fetch(`${API_BASE}/otp/verify-otp`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${keycloak.token}` 
+                    },
+                    body: JSON.stringify({
+                        identifier: currentIdentifier,
+                        otp_code: code,
+                        plate: detectedPlate,
+                        vin: detectedVin
+                    })
+                });
+                
+                if (!resp.ok) throw new Error("Code OTP invalide.");
+                showScreen('screen-success');
+            } catch (e) {
+                showError(e.message);
+            }
+        }
+    </script>
+</body>
+</html>

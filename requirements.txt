@@ -1,0 +1,12 @@
+fastapi==0.136.0
+pydantic-settings==2.3.4
+uvicorn==0.30.1
+python-keycloak==1.7.0
+python-jose==3.3.0
+easyocr==1.7.1
+python-multipart==0.0.9
+opencv-python-headless==4.10.0.84
+torch
+torchaudio
+torchvision
+twilio==9.0.0

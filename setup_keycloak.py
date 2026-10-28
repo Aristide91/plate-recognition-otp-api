@@ -1,15 +1,19 @@
+import os
 import time
 from keycloak import KeycloakAdmin
 
 def setup_keycloak():
+    admin_user = os.getenv("KEYCLOAK_ADMIN", "admin")
+    admin_password = os.environ["KEYCLOAK_ADMIN_PASSWORD"]
+
     print("Waiting for Keycloak to be ready...")
     admin = None
     for i in range(30):
         try:
             admin = KeycloakAdmin(
                 server_url="http://localhost:8080/",
-                username="admin",
-                password="admin",
+                username=admin_user,
+                password=admin_password,
                 realm_name="master",
                 verify=True
             )
